@@ -17,21 +17,29 @@ addStart(gramatyka(S, P), gramatyka('Z', NewP)) :-
 %                   -ListaPrawychStronProdukcjiZeZnaczniekiem)
 
 constructRHSWithDots(RHS, N, RHSWithDots) :-
+    %write('constructRHSWithDots\n'),
     N >= 0,
-    succ(N0, N),
+    N0 is N - 1,
     Z = [(RHS, N)],
     constructRHSWithDots(RHS, N0, RHS_N0),
-    append(Z, RHS_N0, RHSWithDots) .
+    append(RHS_N0, Z, RHSWithDots) .
+
+constructRHSWithDots(_, N, RHSWithDots) :-
+    N < 0,
+    RHSWithDots = [] .
 
 singleRHSWithDots([], []) .
 singleRHSWithDots(RHS, RHSWithDots) :-
+    %write('singleRHSWithDots\n'),
     length(RHS, N),
+    %write(N),
     constructRHSWithDots(RHS, N, RHSWithDots) .
 
 
 % singleProductionWithDots(+Produkcja, -ProdukcjaZeZnacznikiem)
 singleProductionWithDots(prod(S, []), prod(S, [])) .
 singleProductionWithDots(prod(S, [RHS | Xs]), prod(S, Prods)) :-
+    %write('singleProductionWithDots\n'),
     singleRHSWithDots(RHS, RHSWithDots),
     singleProductionWithDots(prod(S, Xs), prod(S, XsWithDots)),
     append(RHSWithDots, XsWithDots, Prods) .
@@ -43,7 +51,9 @@ productionsWithDots([Prod | Ps], ProdsWithDots) :-
     productionsWithDots(Ps, PsWithDots),
     append([ProdWithDots], PsWithDots, ProdsWithDots) .
 
-% getNonTerminals(+Gramatyka, -ListaNieterminali)
+% getNonterminals(+Gramatyka, -ListaNieterminali)
+% getNonterminals(gramatyka(S, Prods), NonTerminals) :-
+
 
 % getTerminals(+Gramatyka, -ListaTerminali)
 
