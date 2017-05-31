@@ -52,7 +52,10 @@ productionsWithDots([Prod | Ps], ProdsWithDots) :-
     append([ProdWithDots], PsWithDots, ProdsWithDots) .
 
 % getNonterminals(+Gramatyka, -ListaNieterminali)
-% getNonterminals(gramatyka(S, Prods), NonTerminals) :-
+getNonterminals([], []) .
+getNonterminals([prod(X, _)| Prods], Nonterminals) :-
+    getNonterminals(Prods, ProdsNonterminals),
+    append([X], ProdsNonterminals, Nonterminals) .
 
 
 % getTerminals(+Gramatyka, -ListaTerminali)
