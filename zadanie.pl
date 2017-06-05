@@ -9,6 +9,8 @@
 % createLR(+Gramatyka, -Automat, -Info)
 % Info yes / konflikt(Opis) (wtedy automat null)
 
+% TODO: Clean-up (remove unnecesary [] from production with dots, testing.
+
 :- use_module(library(lists)).
 
 % addStart(+Gramatyka, -Gramatyka)
@@ -293,6 +295,7 @@ reductions([State | States], OriginalStates, Action) :-
     write('finished'), write(Finished), nl,
     length(Finished, N),
     (N > 1 ->
+        write('Too many accepting states - conflict'), nl,
         nth0(0, Finished, Konf1),
         nth0(1, Finished, Konf2),
         Action = konflikt('Konflikt reduce-reduce')
@@ -300,10 +303,15 @@ reductions([State | States], OriginalStates, Action) :-
         (isConflict(StatesAction) ->
             Action = StatesAction
         ;   (N > 0 ->
+                write('One accepting state'), nl,
                 [Prod] = Finished,
-                indexOf(OriginalStates, Finished, M),
+                write(Prod), nl,
+                write(OriginalStates), nl,
+                indexOf(OriginalStates, State, M),
+                write(M), nl,
                 append([action(M, all, reduce(Prod))], StatesAction, Action)
-            ;   Action = StatesAction
+            ;   write('No accepting states'), nl,
+                Action = StatesAction
             )
         )
     ) .
@@ -320,20 +328,21 @@ accepting([State | States], OriginalStates, StartSymbol, Action) :-
 
 getGotoActionFromMoves([], _, [], []) .
 getGotoActionFromMoves([move(P, X, Q) | Moves], Reductions, Goto, Action) :-
-    % write('getGotoActionFromMoves'), nl,
+    write('getGotoActionFromMoves'), nl,
     getGotoActionFromMoves(Moves, Reductions, MovesGoto, MovesAction),
-    % write('MovesToGo '), write(MovesGoto), nl,
+    write('MovesToGo '), write(MovesGoto), nl,
     (isConflict(MovesAction) ->
+        write('Konflikt returned'), nl,
         Action = MovesAction, Goto = []
     ;   (isNonTerminal(X) ->
-            % write('P X Q'), write(P), write(->), write(X), write(->), write(Q), nl,
+            write('P X Q'), write(P), write(->), write(X), write(->), write(Q), nl,
             append([goto(P, X, Q)], MovesGoto, Goto),
-            Action = MovesAction
-            % write('exiting'), nl
+            Action = MovesAction,
+            write('exiting'), nl
         ;   (member(action(P, all, R), Reductions) ->
-                % nl, write('Konflikt'), nl, nl,
+                nl, write('Konflikt'), nl, nl,
                 Action = konflikt('Konflikt shift-reduce'), Goto = []
-            ;   % nl, write('No konflikt'), nl, nl,
+            ;   nl, write('No konflikt'), nl, nl,
                 append([action(P, X, shift(Q))], MovesAction, Action),
                 Goto = MovesGoto
             )
@@ -347,12 +356,13 @@ getGoToAndAction(Moves, States, StartSymbol, Goto, Action) :-
     write('Reductions '), write(Reductions), nl,
     (isConflict(Reductions) ->
         Action = Reductions, Goto = []
-    ;   % write('No conflict in reductions'), nl,
+    ;   write('No conflict in reductions'), nl,
         getGotoActionFromMoves(Moves, Reductions, MovesGoto, MovesAction),
-        length(MovesAction, LM),
-        write('MovesAction length '), write(LM), nl,
-        write(MovesAction), nl,
+        % length(MovesAction, LM),
+        % write('MovesAction length '), write(LM), nl,
+        % write(MovesAction), nl,
         (isConflict(MovesAction) ->
+            write('getGoToAndAction konflikt'), nl,
             Action = MovesAction, Goto = []
         ;   % write('no conflict'), nl,
             append(Reductions, MovesAction, ActionWithoutAccept),
@@ -392,9 +402,9 @@ createLR(Grammar, Automata, Info) :-
     length(Goto, LG),
     write('Goto length '), write(LG), nl,
     write('Goto '), write(Goto), nl,
-    length(Action, LA),
-    write('Action length '), write(LA), nl,
-    write('Action '), write(Action), nl,
+    % length(Action, LA),
+    % write('Action length '), write(LA), nl,
+    % write('Action '), write(Action), nl,
     (isConflict(Action) ->
         Automata = null,
         Info = Action
