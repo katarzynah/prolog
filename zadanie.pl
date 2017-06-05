@@ -13,7 +13,9 @@
 
 % addStart(+Gramatyka, -Gramatyka)
 addStart(gramatyka(S, P), gramatyka('Z', NewP)) :-
-    append([prod('Z', [nt(S), #])], P, NewP) .
+    Prod = prod('Z', [[nt(S), #]]),
+    append([Prod], P, NewP) .
+
 
 % ListaPrawychStronProdukcjiZeZnaczniekiem = [(PrawaStronaProdukcji, Liczba)]
 
@@ -34,16 +36,16 @@ constructRhsWithDots(_, N, RhsWithDots) :-
 %                   -ListaPrawychStronProdukcjiZeZnaczniekiem)
 singleRhsWithDots([], []) .
 singleRhsWithDots(Rhs, RhsWithDots) :-
-    %write('singleRhsWithDots\n'),
+    % write('singleRhsWithDots '), write(Rhs), nl,
     length(Rhs, N),
-    %write(N),
+    % write(N),
     constructRhsWithDots(Rhs, N, RhsWithDots) .
 
 
 % singleProductionWithDots(+Produkcja, -ProdukcjaZeZnacznikiem)
 singleProductionWithDots(prod(S, []), prod(S, [])) .
 singleProductionWithDots(prod(S, [Rhs | Xs]), prod(S, Prods)) :-
-    %write('singleProductionWithDots\n'),
+    % write('singleProductionWithDots\n'),
     singleRhsWithDots(Rhs, RhsWithDots),
     singleProductionWithDots(prod(S, Xs), prod(S, XsWithDots)),
     append(RhsWithDots, XsWithDots, Prods) .
@@ -92,9 +94,9 @@ getAllSymbols([prod(_, Rhs) | Prods], Terminals) :-
 % getTerminals(+ListaProdukcji, +ListaNieterminali, -ListaTerminali)
 getTerminals(Prods, NonTerminals, Terminals) :-
     getAllSymbols(Prods, AllSymbols),
-    write(NonTerminals),
-    subseq(AllSymbols, NonTerminals, Terminals),
-    write(Terminals) .
+    % write(NonTerminals),
+    subseq(AllSymbols, NonTerminals, Terminals) .
+    % write(Terminals) .
 
 % getNextSymbol(+ProdukcjaZeZnacznikiem, -Symbol)
 getNextSymbol(prod(_, [(Prod, N)]), Symbol) :- nth0(N, Prod, Symbol) .
@@ -176,39 +178,40 @@ getClosure(ProdsToClose, Prods, Closure) :-
 prodsMovedBySymbol([], _, []) .
 prodsMovedBySymbol([Prod | Prods], Symbol, MovedProds) :-
     prodsMovedBySymbol(Prods, Symbol, MovedFromProds),
-    write(Prod), nl,
+    % write(Prod), nl,
     (noNextSymbol(Prod) ->
         MovedProds = MovedFromProds
     ;   getNextSymbol(Prod, ProdSymbol),
         write(ProdSymbol), nl,
         (ProdSymbol = Symbol ->
-            write('Moving'), nl,
+            % write('Moving'), nl,
             moveNext(Prod, ProdNext),
-            append([ProdNext], MovedFromProds, MovedProds),
-            write(MovedProds), nl
-        ;   MovedProds = MovedFromProds)   
+            append([ProdNext], MovedFromProds, MovedProds)
+            % write(MovedProds), nl
+        ;   MovedProds = MovedFromProds
+        )   
     ) .
 
 getStatesFromState([], _, _, [], []) .
 getStatesFromState([StateElem | Rest], AllProds, DoneSymbols, States, Symbols) :-
-    write('getStatesFromState '), write(StateElem), nl,
-    write('rest '), write(Rest), nl,
+    % write('getStatesFromState '), write(StateElem), nl,
+    % write('rest '), write(Rest), nl,
     (noNextSymbol(StateElem) ->
-        write('No next'), nl,
+        % write('No next'), nl,
         getStatesFromState(Rest, AllProds, DoneSymbols, States, Symbols)
     ;   getNextSymbol(StateElem, Symbol),
         (member(Symbol, DoneSymbols) ->
-            write('symbol done'), nl,
+            % write('symbol done'), nl,
             getStatesFromState(Rest, AllProds, DoneSymbols, States, Symbols)
-        ;   write('symbol done '), write(Symbol), nl,
+        ;   % write('symbol done '), write(Symbol), nl,
             moveNext(StateElem, StateNext),
-            write(StateNext), nl,
+            % write(StateNext), nl,
             prodsMovedBySymbol(Rest, Symbol, MovedStates),
-            write('moved states '), write(MovedStates), nl,
+            % write('moved states '), write(MovedStates), nl,
             append([StateNext], MovedStates, StatesFromSymbol),
-            write('StatesFromSymbol '), write(StatesFromSymbol), nl,
+            % write('StatesFromSymbol '), write(StatesFromSymbol), nl,
             getClosure(StatesFromSymbol, AllProds, NewState),
-            write('NewState '), write(NewState), nl,
+            % write('NewState '), write(NewState), nl,
             append([Symbol], DoneSymbols, Done),
             getStatesFromState(Rest, AllProds, Done, StatesFromRest,
                                SymbolsFromRest),
@@ -243,10 +246,11 @@ getStatesWithDone([InitState | InitStates], Prods, Done, States, Moves) :-
 
 % getStates(+Gramatyka, +ListaNieterminali, +ListaTerminali, -ListaStanów,
 %           -ListaPrzejść)
-getStates(Prods, States, Moves) :-
-    getClosure([prod('Z', [([nt('S'), '#'],0)])], Prods, StartClosure),
+getStates(Prods, StartSymbol, States, Moves) :-
+    getClosure([prod('Z', [([nt(StartSymbol), '#'],0)])], Prods, StartClosure),
     getStatesWithDone(
-        [StartClosure], Prods, [], States, Moves) .
+        [StartClosure], Prods, [], StatesFromStart, Moves),
+    append([StartClosure], StatesFromStart, States) .
 
 emptyList(N, List) :-
     (N > 0 ->
@@ -276,7 +280,7 @@ finished([Prod | Prods], Finished) :-
 reductions([], []) .
 reductions([State | States], Action) :-
     finished(State, Finished),
-    write('finished'), write(Finished), nl,
+    % write('finished'), write(Finished), nl,
     length(Finished, N),
     (N > 1 ->
         nth0(0, Finished, Konf1),
@@ -293,80 +297,90 @@ reductions([State | States], Action) :-
         )
     ) .
 
-accepting([], []) .
-accepting([State | States], Action) :-
-    accepting(States, ActionFromStates),
-    (member(prod('Z', [([nt('S'), '#'],1)]), State) ->
+accepting([], _, []) .
+accepting([State | States], StartSymbol, Action) :-
+    accepting(States, StartSymbol, ActionFromStates),
+    write('State '), write(State), nl,
+    (member(prod('Z', [([nt(StartSymbol), '#'], 1)]), State) ->
         append([State], ActionFromStates, Action)
     ;   Action = ActionFromStates
     ) .
 
-getGotoActionFromMoves([], [], []) .
+getGotoActionFromMoves([], _, [], []) .
 getGotoActionFromMoves([move(P, X, Q) | Moves], Reductions, Goto, Action) :-
-    getGotoActionFromMoves(Moves, MovesGoto, MovesAction),
+    % write('getGotoActionFromMoves'), nl,
+    getGotoActionFromMoves(Moves, Reductions, MovesGoto, MovesAction),
+    % write('MovesToGo '), write(MovesGoto), nl,
     (isConflict(MovesAction) ->
         Action = MovesAction, Goto = []
     ;   (isNonTerminal(X) ->
-            append([goto(P, X, Q)], MovesGoto, Goto), Action = MovesAction
+            % write('P X Q'), write(P), write(->), write(X), write(->), write(Q), nl,
+            append([goto(P, X, Q)], MovesGoto, Goto),
+            Action = MovesAction
+            % write('exiting'), nl
         ;   (member(action(P, all, R), Reductions) ->
+                % nl, write('Konflikt'), nl, nl,
                 Action = konflikt('Konflikt shift-reduce'), Goto = []
-            ;   append([action(P, X, shift(Q))], MovesAction, Action),
+            ;   % nl, write('No konflikt'), nl, nl,
+                append([action(P, X, shift(Q))], MovesAction, Action),
                 Goto = MovesGoto
             )
         )
     ) .
 
-getGoToAndAction(Moves, States, Goto, Action) :-
+getGoToAndAction(Moves, States, StartSymbol, Goto, Action) :-
     reductions(States, Reductions),
+    length(Reductions, LR),
+    write('Reductions length '), write(LR), nl,
+    write('Reductions '), write(Reductions), nl,
     (isConflict(Reductions) ->
         Action = Reductions, Goto = []
-    ;   getGotoActionFromMoves(Moves, Reductions, MovesGoto, MovesAction),
+    ;   % write('No conflict in reductions'), nl,
+        getGotoActionFromMoves(Moves, Reductions, MovesGoto, MovesAction),
+        length(MovesAction, LM),
+        write('MovesAction length '), write(LM), nl,
+        write(MovesAction), nl,
         (isConflict(MovesAction) ->
             Action = MovesAction, Goto = []
-        ;   append(Reductions, MovesAction, ActionWithoutAccept),
-            accepting(States, AcceptAcction),
+        ;   % write('no conflict'), nl,
+            append(Reductions, MovesAction, ActionWithoutAccept),
+            % write('ActionWithoutAccept'), write(ActionWithoutAccept), nl,
+            accepting(States, StartSymbol, AcceptAcction),
+            length(AcceptAcction, LA),
+            write('AcceptAcction length '), write(LA), nl,
+            write('AcceptAcction'), write(AcceptAcction), nl,
             append(ActionWithoutAccept, AcceptAcction, Action),
             Goto = MovesGoto
         )
     ) .
 
 createLR(Grammar, Automata, Info) :-
+    gramatyka(StartSymbol, _) = Grammar,
     addStart(Grammar, NewGrammar),
+    write('New grammar '), write(NewGrammar), nl,
     gramatyka(_, Prods) = NewGrammar,
+    write('Prods '), write(Prods), nl,
     productionsWithDots(Prods, ProdsDotted),
-    getStates(ProdsDotted, States, Moves),
-    getGoToAndAction(Moves, States, Goto, Action),
+    write('ProdsDotted '), write(ProdsDotted), nl,
+    getStates(ProdsDotted, StartSymbol, States, Moves),
+    length(States, LS),
+    write('States length '), write(LS), nl,
+    write('States '), write(States), nl, nl,
+    % write('Moves '), write(Moves), nl,
+    getGoToAndAction(Moves, States, StartSymbol, Goto, Action),
+    length(Goto, LG),
+    write('Goto length '), write(LG), nl,
+    write('Goto '), write(Goto), nl,
+    length(Action, LA),
+    write('Action length '), write(LA), nl,
+    write('Action '), write(Action), nl,
     (isConflict(Action) ->
         Automata = null,
         Info = Action
     ;   Info = yes,
         Automata = automat(States, Moves, Goto, Action)
     ) .
-    
-    
-
-% prepareAutomaton(+Gramatyka, -ListaStanów, -ListaNieterminali,
-%                  -ListaTerminali, -ListaPrzejść)
-%prepareAutomaton(G, States, Nonterminals, Terminals, Moves) :-
-%    addStart(G, gramatyka(Z, P)),
-%    productionsWithDots(P, PDots),
-%    getNonTerminals(gramatyka(Z, P), Nonterminals),
-%    getTerminals(gramatyka(Z, P), Terminals),
-%    getStates(gramatyka(Z, P), Nonterminals, Terminals, States, Moves) .
-
-%createLR(G, automat(States, Terminals, Nonterminals, Goto, Action), yes) :- 
-%    prepareAutomaton(G, States, Nonterminals, Terminals, Moves),
-%    getGoToAndAction(States, Nonterminals, Terminals, Moves, Goto, Action) .
-
-%createLR(G, null, konflikt(Opis)) :-
-%    prepareAutomaton(G, States, Nonterminals, Terminals, Moves),
-%    getGoToAndAction(States, Nonterminals, Terminals, Moves, konflikt(Opis),
-%                     Action) .
-
-
-
-% getClosure(+Produkcje, -Closure)
-
-
 
 % accept(+Automat, +Słowo)
+%accept(automat(States, Moves, Goto, Action), Word) :-
+%    Stack = ['Z'],
