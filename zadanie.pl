@@ -99,9 +99,13 @@ getTerminals(Prods, NonTerminals, Terminals) :-
     write(Terminals) .
 
 % getNextSymbol(+ProdukcjaZeZnacznikiem, -Symbol)
-getNextSymbol([(Prod, N)], Symbol) :- nth0(N, Prod, Symbol) .
+getNextSymbol(prod(_, [(Prod, N)]), Symbol) :- nth0(N, Prod, Symbol) .
 
-noNextSymbol([(Prod, N)]) :- length(Prod, M), M =:= N .
+noNextSymbol(prod(_, [(Prod, N)])) :- length(Prod, M), M =:= N .
+
+moveNext(prod(Z, [(Prod, N)]), prod(Z, [(Prod, M)])) :- M is N + 1 .
+
+isConflict(konflikt(_)) .
 
 getAllStartingProds([], _, []) .
 getAllStartingProds([(Prod, N) | Prods], Symbol, StartingProds) :-
@@ -121,33 +125,32 @@ getAllStartingProdsFromSymbol([prod(X, Rhs)| Prods], Symbol, ProdsFromSymbol) :-
 
 % getSingleProdClosure(+ProdukcjaZeZnacznikiem, +ListProdukcjiZeZnaczikiem,
 %                      +ListProdukcjiZeZnaczikiem, -ListaProdukcjiZeZnacznikiem)
-getSingleProdClosure(prod(Start, Prod), Prods, Done, Closure, NewDone) :-
-    write('getSingleProdClosure: '),
-    write(Start), write('->'), write(Prod), nl,
+getSingleProdClosure(Prod, Prods, Done, Closure, NewDone) :-
+    %write('getSingleProdClosure: '),
+    %write(Start), write('->'), write(Prod), nl,
     (noNextSymbol(Prod) ->
-        write('noNextSymbol'), nl,
-        Closure = [prod(Start, Prod)], NewDone = Done
+        % write('noNextSymbol'), nl,
+        Closure = [Prod], NewDone = Done
     ;   getNextSymbol(Prod, Symbol),
-        write(Symbol),nl,
+        %write(Symbol),nl,
         (isNonTerminal(Symbol) ->
-            write('nonTerm'), nl,
-            (member(prod(Start, Prod), Done) ->
-                write('isMember'), nl,
+            % write('nonTerm'), nl,
+            (member(Prod, Done) ->
+                % write('isMember'), nl,
                 Closure = [], NewDone = Done
             ;   nt(UnwrappedSymbol) = Symbol,
-                write('UnwrappedSymbol '),
-                write(UnwrappedSymbol), nl,
+                %write('UnwrappedSymbol '),
+                %write(UnwrappedSymbol), nl,
                 getAllStartingProdsFromSymbol(Prods, UnwrappedSymbol,
                                               ProdsFromSymbol),
-                write('Prods from symbol '),write(ProdsFromSymbol), nl,
-                append(Done, [prod(Start, Prod)], DoneWithProd),
-                write('Done '), write(DoneWithProd), nl,
+                %write('Prods from symbol '),write(ProdsFromSymbol), nl,
+                append(Done, [Prod], DoneWithProd),
+                %write('Done '), write(DoneWithProd), nl,
                 getClosureWithDone(ProdsFromSymbol, Prods, DoneWithProd,
                                    ProdsFromSymbolClosure, NewDone),
-                append([prod(Start, Prod)], ProdsFromSymbolClosure, Closure)
+                append([Prod], ProdsFromSymbolClosure, Closure)
             )
-        ;   write('term'), nl,
-            Closure = [prod(Start, Prod)], NewDone = Done
+        ;   Closure = [Prod], NewDone = Done
         )
     ) .
 
@@ -156,10 +159,10 @@ getSingleProdClosure(prod(Start, Prod), Prods, Done, Closure, NewDone) :-
 %             -ListaProdukcjiZeZnacznikiem)
 getClosureWithDone([], _, _, [], _) .
 getClosureWithDone([ProdToClose | ProdsToClose], Prods, Done, Closure, NewDone) :-
-    write('getClosureWithDone '), write(Done), nl,
-    write('withProds '), write(ProdToClose), write(ProdsToClose), nl,
+    %write('getClosureWithDone '), write(Done), nl,
+    %write('withProds '), write(ProdToClose), write(ProdsToClose), nl,
     getSingleProdClosure(ProdToClose, Prods, Done, ProdClosure, DoneAfterProd),
-    write('getClosureWithDone after single'), write(ProdClosure), nl,
+    %write('getClosureWithDone after single'), write(ProdClosure), nl,
     getClosureWithDone(ProdsToClose, Prods, DoneAfterProd, ProdsClosure, NewDone),
     append(ProdClosure, ProdsClosure, ClosureWithDups),
     remove_dups(ClosureWithDups, Closure) .
@@ -168,17 +171,134 @@ getClosureWithDone([ProdToClose | ProdsToClose], Prods, Done, Closure, NewDone) 
 % getClosure(+ListaProdukcjiZeZnacznikiem, +ListProdukcjiZeZnaczikiem,
 %            -ListaProdukcjiZeZnacznikiem)
 getClosure(ProdsToClose, Prods, Closure) :-
-    write('getClosure'), nl,
-    getClosureWithDone(ProdsToClose, Prods, [], Closure, _) . 
+    % write('getClosure'), nl,
+    getClosureWithDone(ProdsToClose, Prods, [], Closure, _) .
+    % TODO(Kasia): Sort closure
 
+prodsMovedBySymbol([], _, []) .
+prodsMovedBySymbol([Prod | Prods], Symbol, MovedProds) :-
+    prodsMovedBySymbol(Prods, Symbol, MovedFromProds),
+    write(Prod), nl,
+    (noNextSymbol(Prod) ->
+        MovedProds = MovedFromProds
+    ;   getNextSymbol(Prod, ProdSymbol),
+        write(ProdSymbol), nl,
+        (ProdSymbol = Symbol ->
+            write('Moving'), nl,
+            moveNext(Prod, ProdNext),
+            append([ProdNext], MovedFromProds, MovedProds),
+            write(MovedProds), nl
+        ;   MovedProds = MovedFromProds)   
+    ) .
 
-% getStatesWithDone(+Gramatyka, +ListaNieterminali, +ListaTerminali,
+getStatesFromState([], _, _, [], []) .
+getStatesFromState([StateElem | Rest], AllProds, DoneSymbols, States, Symbols) :-
+    write('getStatesFromState '), write(StateElem), nl,
+    write('rest '), write(Rest), nl,
+    (noNextSymbol(StateElem) ->
+        write('No next'), nl,
+        getStatesFromState(Rest, AllProds, DoneSymbols, States, Symbols)
+    ;   getNextSymbol(StateElem, Symbol),
+        (member(Symbol, DoneSymbols) ->
+            write('symbol done'), nl,
+            getStatesFromState(Rest, AllProds, DoneSymbols, States, Symbols)
+        ;   write('symbol done '), write(Symbol), nl,
+            moveNext(StateElem, StateNext),
+            write(StateNext), nl,
+            prodsMovedBySymbol(Rest, Symbol, MovedStates),
+            write('moved states '), write(MovedStates), nl,
+            append([StateNext], MovedStates, StatesFromSymbol),
+            write('StatesFromSymbol '), write(StatesFromSymbol), nl,
+            getClosure(StatesFromSymbol, AllProds, NewState),
+            write('NewState '), write(NewState), nl,
+            append([Symbol], DoneSymbols, Done),
+            getStatesFromState(Rest, AllProds, Done, StatesFromRest,
+                               SymbolsFromRest),
+            append([NewState], StatesFromRest, States),
+            append([Symbol], SymbolsFromRest, Symbols)
+        ) 
+    ) .
+
+getMoves(_, [], [], []) .
+getMoves(InitState, [State | Rest], [Symbol | Symbols], Moves) :-
+    getMoves(InitState, Rest, Symbols, MovesFromRest),
+    append([move(InitState, Symbol, State)], MovesFromRest, Moves) .
+
+% getStatesWithDone(+ListaStanów, +ListaNieterminali, +ListaTerminali,
 %                   +ListaStanów, -ListaStanów, -ListaPrzejść, -ListaStanów)
+getStatesWithDone([], _, _, [], []) .
+getStatesWithDone([InitState | InitStates], Prods, Done, States, Moves) :-
+    (member(InitState, Done) -> 
+        getStatesWithDone(InitStates, Prods, Done, States, Moves)
+    ;   getStatesFromState(InitState, Prods, [], StatesFromState, Symbols),
+        getMoves(InitState, StatesFromState, Symbols, MovesFromState),
+        append([InitState], Done, NewDone),
+        append(InitStates, StatesFromState, StatesToDoWithDups),
+        remove_dups(StatesToDoWithDups, StatesToDo),
+        getStatesWithDone(
+            StatesToDo, Prods, NewDone, StatesFromRest, MovesFromRest),
+        append(StatesFromState, StatesFromRest, StatesWithDups),
+        remove_dups(StatesWithDups, States),
+        append(MovesFromState, MovesFromRest, Moves)
+    ) .
+    
 
 % getStates(+Gramatyka, +ListaNieterminali, +ListaTerminali, -ListaStanów,
 %           -ListaPrzejść)
-getStates(G, Nonterminals, Terminals, States, Moves) :-
-    getStatesWithDone(G, Nonterminals, Terminals, [], States, Moves, _) .
+getStates(Prods, States, Moves) :-
+    getClosure([prod('Z', [([nt('S'), '#'],0)])], Prods, StartClosure),
+    getStatesWithDone(
+        [StartClosure], Prods, [], States, Moves) .
+
+emptyList(N, List) :-
+    (N > 0 ->
+        M is N - 1,
+        emptyList(M, ListM),
+        append([null], ListM, List)
+    ;   List = []
+    ) .
+
+emptyMatrix(N, M, Matrix) :-
+    (N > 0 ->
+        K is N - 1,
+        emptyMatrix(K, M, MatrixK),
+        emptyList(M, List),
+        append([List], MatrixK, Matrix)
+    ; Matrix = [[]]
+    ) .
+
+finished([], []) .
+finished([Prod | Prods], Finished) :-
+    finished(Prods, FinishedInProds),
+    (noNextSymbol(Prod) ->
+        append([Prod], FinishedInProds, Finished)
+    ;   Finished = FinishedInProds
+    ) .
+
+reductions([], []) .
+reductions([State | States], Action) :-
+    finished(State, Finished),
+    write('finished'), write(Finished), nl,
+    length(Finished, N),
+    (N > 1 ->
+        nth0(0, Finished, Konf1),
+        nth0(1, Finished, Konf2),
+        Action = konflikt('Konflikt reduce-reduce')
+    ;   reductions(States, StatesAction),
+        (isConflict(StatesAction) ->
+            Action = StatesAction
+        ;   (N > 0 ->
+                [Prod] = Finished,
+                append([action(State, all, reduce(Prod))], StatesAction, Action)
+            ;   Action = StatesAction
+            )
+        )
+    ) .
+
+getGotoAndAction([], [], []) .
+getGotoAndAction([Move | Moves], Goto, Action) .
+    
+    
 
 % prepareAutomaton(+Gramatyka, -ListaStanów, -ListaNieterminali,
 %                  -ListaTerminali, -ListaPrzejść)
