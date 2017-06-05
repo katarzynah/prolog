@@ -329,6 +329,19 @@ getGoToAndAction(Moves, States, Goto, Action) :-
             Goto = MovesGoto
         )
     ) .
+
+createLR(Grammar, Automata, Info) :-
+    addStart(Grammar, NewGrammar),
+    gramatyka(_, Prods) = NewGrammar,
+    productionsWithDots(Prods, ProdsDotted),
+    getStates(ProdsDotted, States, Moves),
+    getGoToAndAction(Moves, States, Goto, Action),
+    (isConflict(Action) ->
+        Automata = null,
+        Info = Action
+    ;   Info = yes,
+        Automata = automat(States, Moves, Goto, Action)
+    ) .
     
     
 
