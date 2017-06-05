@@ -103,7 +103,17 @@ getNextSymbol(prod(_, [(Prod, N)]), Symbol) :- nth0(N, Prod, Symbol) .
 
 noNextSymbol(prod(_, [(Prod, N)])) :- length(Prod, M), M =:= N .
 
+prodLength(prod(_, [(_, N)]), N) .
+
+prodLhs(prod(S, _), S) .
+
 moveNext(prod(Z, [(Prod, N)]), prod(Z, [(Prod, M)])) :- M is N + 1 .
+
+indexOf([X | _], X, 0) .
+indexOf([X | Xs], Elem, N) :-
+    indexOf(Xs, Elem, M),
+    N is M + 1 .
+
 
 isConflict(konflikt(_)) .
 
@@ -246,11 +256,11 @@ getStatesWithDone([InitState | InitStates], Prods, Done, States, Moves) :-
 
 % getStates(+Gramatyka, +ListaNieterminali, +ListaTerminali, -ListaStanów,
 %           -ListaPrzejść)
-getStates(Prods, StartSymbol, States, Moves) :-
-    getClosure([prod('Z', [([nt(StartSymbol), '#'],0)])], Prods, StartClosure),
+getStates(Prods, StartSymbol, States, StartState, Moves) :-
+    getClosure([prod('Z', [([nt(StartSymbol), '#'],0)])], Prods, StartState),
     getStatesWithDone(
-        [StartClosure], Prods, [], StatesFromStart, Moves),
-    append([StartClosure], StatesFromStart, States) .
+        [StartState], Prods, [], StatesFromStart, Moves),
+    append([StartState], StatesFromStart, States) .
 
 emptyList(N, List) :-
     (N > 0 ->
@@ -277,32 +287,34 @@ finished([Prod | Prods], Finished) :-
     ;   Finished = FinishedInProds
     ) .
 
-reductions([], []) .
-reductions([State | States], Action) :-
+reductions([], _, []) .
+reductions([State | States], OriginalStates, Action) :-
     finished(State, Finished),
-    % write('finished'), write(Finished), nl,
+    write('finished'), write(Finished), nl,
     length(Finished, N),
     (N > 1 ->
         nth0(0, Finished, Konf1),
         nth0(1, Finished, Konf2),
         Action = konflikt('Konflikt reduce-reduce')
-    ;   reductions(States, StatesAction),
+    ;   reductions(States, OriginalStates, StatesAction),
         (isConflict(StatesAction) ->
             Action = StatesAction
         ;   (N > 0 ->
                 [Prod] = Finished,
-                append([action(State, all, reduce(Prod))], StatesAction, Action)
+                indexOf(OriginalStates, Finished, M),
+                append([action(M, all, reduce(Prod))], StatesAction, Action)
             ;   Action = StatesAction
             )
         )
     ) .
 
-accepting([], _, []) .
-accepting([State | States], StartSymbol, Action) :-
-    accepting(States, StartSymbol, ActionFromStates),
+accepting([], _, _, []) .
+accepting([State | States], OriginalStates, StartSymbol, Action) :-
+    accepting(States, OriginalStates, StartSymbol, ActionFromStates),
     write('State '), write(State), nl,
     (member(prod('Z', [([nt(StartSymbol), '#'], 1)]), State) ->
-        append([State], ActionFromStates, Action)
+        indexOf(OriginalStates, State, N),
+        append([action(N, #, accept)], ActionFromStates, Action)
     ;   Action = ActionFromStates
     ) .
 
@@ -329,7 +341,7 @@ getGotoActionFromMoves([move(P, X, Q) | Moves], Reductions, Goto, Action) :-
     ) .
 
 getGoToAndAction(Moves, States, StartSymbol, Goto, Action) :-
-    reductions(States, Reductions),
+    reductions(States, States, Reductions),
     length(Reductions, LR),
     write('Reductions length '), write(LR), nl,
     write('Reductions '), write(Reductions), nl,
@@ -345,7 +357,7 @@ getGoToAndAction(Moves, States, StartSymbol, Goto, Action) :-
         ;   % write('no conflict'), nl,
             append(Reductions, MovesAction, ActionWithoutAccept),
             % write('ActionWithoutAccept'), write(ActionWithoutAccept), nl,
-            accepting(States, StartSymbol, AcceptAcction),
+            accepting(States, States, StartSymbol, AcceptAcction),
             length(AcceptAcction, LA),
             write('AcceptAcction length '), write(LA), nl,
             write('AcceptAcction'), write(AcceptAcction), nl,
@@ -353,6 +365,14 @@ getGoToAndAction(Moves, States, StartSymbol, Goto, Action) :-
             Goto = MovesGoto
         )
     ) .
+
+translateMoves([], _, []) .
+translateMoves([Move | Rest], States, [NewMove | NewRest]) :-
+    move(P, X, Q) = Move,
+    indexOf(States, P, N),
+    indexOf(States, Q, M),
+    NewMove = move(N, X, M),
+    translateMoves(Rest, States, NewRest) .
 
 createLR(Grammar, Automata, Info) :-
     gramatyka(StartSymbol, _) = Grammar,
@@ -362,11 +382,12 @@ createLR(Grammar, Automata, Info) :-
     write('Prods '), write(Prods), nl,
     productionsWithDots(Prods, ProdsDotted),
     write('ProdsDotted '), write(ProdsDotted), nl,
-    getStates(ProdsDotted, StartSymbol, States, Moves),
+    getStates(ProdsDotted, StartSymbol, States, StartState, MovesWithStates),
     length(States, LS),
     write('States length '), write(LS), nl,
     write('States '), write(States), nl, nl,
-    % write('Moves '), write(Moves), nl,
+    translateMoves(MovesWithStates, States, Moves),
+    write('Moves '), write(Moves), nl,
     getGoToAndAction(Moves, States, StartSymbol, Goto, Action),
     length(Goto, LG),
     write('Goto length '), write(LG), nl,
@@ -378,9 +399,80 @@ createLR(Grammar, Automata, Info) :-
         Automata = null,
         Info = Action
     ;   Info = yes,
-        Automata = automat(States, Moves, Goto, Action)
+        Automata = automat(StartState, Goto, Action)
     ) .
 
+topStack([Top | _], Top) .
+popStack([_| Rest], Rest) .
+pushStack(Stack, Elem, [Elem | Stack]) .
+popStackN(Stack, N, NewStack) :-
+    (N > 0 ->
+        [_ | Rest] = Stack,
+        M is N - 1,
+        popStackN(Rest, M, NewStack)
+    ;   NewStack = Stack
+    ) .
+
+executeAction(shift(Q), Stack, _, NewStack) :-
+    %write(Stack),
+    pushStack(Stack, Q, NewStack) .
+    %write(NewStack) .
+executeAction(reduce(Prod), Stack, Goto, NewStack) :-
+    write('Executing reduce'), nl,
+    prodLength(Prod, N),
+    write(N), nl,
+    prodLhs(Prod, Lhs),
+    write(Lhs), nl,
+    popStackN(Stack, N, StackTmp),
+    write(StackTmp), nl,
+    topStack(StackTmp, Top),
+    write(Top), nl,
+    (member(goto(Top, nt(Lhs), X), Goto) ->
+        pushStack(StackTmp, X, NewStack)
+    ) .
+
+acceptWithStack(automat(StartState, Goto, Action), Stack, []) :-
+    write('end of word'), nl,
+    write('Stack '), write(Stack), nl,
+    topStack(Stack, Top),
+    (member(action(Top, '#', accept), Action) -> 
+        true
+    ;   (member(action(Top, all, Act), Action) ->
+            write('Action is '), write(Act), nl,
+            executeAction(Act, Stack, Goto, NewStack),
+            acceptWithStack(automat(StartState, Goto, Action), NewStack, [])
+        )
+    ).
+acceptWithStack(automat(StartState, Goto, Action), Stack, [Term | Rest]) :-
+    write('Stack '), write(Stack), nl,
+    write('Term '), write(Term), nl,
+    topStack(Stack, Top),
+    (member(action(Top, Term, Act), Action) ->
+        write('Action is '), write(Act), nl,
+        executeAction(Act, Stack, Goto, NewStack),
+        acceptWithStack(automat(StartState, Goto, Action), NewStack, Rest)
+    ;   (member(action(Top, all, Act), Action) ->
+            write('Action is '), write(Act), nl,
+            executeAction(Act, Stack, Goto, NewStack),
+            acceptWithStack(automat(StartState, Goto, Action), NewStack, [Term|Rest])
+        )
+    ) . 
+
+
+addHash(Word, WordWithHash) :-
+    reverse(Word, WordReversed),
+    %WordTmp = ['#' | WordReversed],
+    reverse(WordTmp, WordWithHash) .
+
 % accept(+Automat, +Słowo)
-%accept(automat(States, Moves, Goto, Action), Word) :-
-%    Stack = ['Z'],
+accept(automat(StartState, Goto, Action), Word) :-
+    Stack = [0],
+    % addHash(Word, WordWithHash),
+    acceptWithStack(automat(StartState, Goto, Action), Stack, Word) .
+
+test(G, W) :-
+    createLR(G, A, I),
+    (isConflict(I) ->
+        write(I), nl, false
+    ;   accept(A, W) 
+    ) .
