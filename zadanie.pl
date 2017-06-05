@@ -64,8 +64,6 @@ getNonterminals([prod(X, _)| Prods], Nonterminals) :-
 
 isNonTerminal(nt(_)) .
 
-getNonTerminal(nt(_), _) .
-
 getAllSymbolsFromSingleRhs([], []) .
 getAllSymbolsFromSingleRhs([S | Rest], Terminals) :-
     getAllSymbolsFromSingleRhs(Rest, TerminalsFromRest),
@@ -295,8 +293,42 @@ reductions([State | States], Action) :-
         )
     ) .
 
-getGotoAndAction([], [], []) .
-getGotoAndAction([Move | Moves], Goto, Action) .
+accepting([], []) .
+accepting([State | States], Action) :-
+    accepting(States, ActionFromStates),
+    (member(prod('Z', [([nt('S'), '#'],1)]), State) ->
+        append([State], ActionFromStates, Action)
+    ;   Action = ActionFromStates
+    ) .
+
+getGotoActionFromMoves([], [], []) .
+getGotoActionFromMoves([move(P, X, Q) | Moves], Reductions, Goto, Action) :-
+    getGotoActionFromMoves(Moves, MovesGoto, MovesAction),
+    (isConflict(MovesAction) ->
+        Action = MovesAction, Goto = []
+    ;   (isNonTerminal(X) ->
+            append([goto(P, X, Q)], MovesGoto, Goto), Action = MovesAction
+        ;   (member(action(P, all, R), Reductions) ->
+                Action = konflikt('Konflikt shift-reduce'), Goto = []
+            ;   append([action(P, X, shift(Q))], MovesAction, Action),
+                Goto = MovesGoto
+            )
+        )
+    ) .
+
+getGoToAndAction(Moves, States, Goto, Action) :-
+    reductions(States, Reductions),
+    (isConflict(Reductions) ->
+        Action = Reductions, Goto = []
+    ;   getGotoActionFromMoves(Moves, Reductions, MovesGoto, MovesAction),
+        (isConflict(MovesAction) ->
+            Action = MovesAction, Goto = []
+        ;   append(Reductions, MovesAction, ActionWithoutAccept),
+            accepting(States, AcceptAcction),
+            append(ActionWithoutAccept, AcceptAcction, Action),
+            Goto = MovesGoto
+        )
+    ) .
     
     
 
