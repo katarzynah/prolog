@@ -142,7 +142,7 @@ closureWithDone([ProdToClose | ProdsToClose], Prods, Done, Closure, NewDone) :-
     %write('closureWithDone after single'), write(ProdClosure), nl,
     closureWithDone(ProdsToClose, Prods, DoneAfterProd, ProdsClosure, NewDone),
     append(ProdClosure, ProdsClosure, ClosureWithDups),
-    list_to_set(ClosureWithDups, Closure) .
+    remove_dups(ClosureWithDups, Closure) .
 
 
 % closure(+ProductionList1, +ProductionList2, -ProductionList3)
@@ -227,11 +227,11 @@ statesWithDone([InitState | InitStates], Prods, Done, States, Moves) :-
         moves(InitState, StatesFromState, Symbols, MovesFromState),
         append([InitState], Done, NewDone),
         append(InitStates, StatesFromState, StatesToDoWithDups),
-        list_to_set(StatesToDoWithDups, StatesToDo),
+        remove_dups(StatesToDoWithDups, StatesToDo),
         statesWithDone(
             StatesToDo, Prods, NewDone, StatesFromRest, MovesFromRest),
         append(StatesFromState, StatesFromRest, StatesWithDups),
-        list_to_set(StatesWithDups, States),
+        remove_dups(StatesWithDups, States),
         append(MovesFromState, MovesFromRest, Moves)
     ) .
     
